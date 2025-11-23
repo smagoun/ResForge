@@ -31,7 +31,8 @@ public class ImageEditor: AbstractEditor, ResourceEditor, PreviewProvider, Expor
         "PAT ",
         "PAT#",
         "SICN",
-        "pxm#"
+        "pxm#",
+        "CvPc",
     ]
 
     public let resource: Resource
@@ -305,6 +306,8 @@ extension ImageEditor {
             return Icons.rep(data, for: resource.type)
         case "pxm#":
             return Pxm.rep(data)
+        case "CvPc":
+            return CvPc.rep(data)
         default:
             return NSBitmapImageRep(data: data)
         }

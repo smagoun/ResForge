@@ -132,7 +132,7 @@ public class PluginRegistry {
             "f.cursive.circle"
         case "FOND", "FONT":
             "f.cursive"
-        case "GIFf", "jpeg", "PICT", "PNG ", "PNGf", "pxm#":
+        case "GIFf", "jpeg", "PICT", "PNG ", "PNGf", "pxm#", "CvPc":
             "photo"
         case "hdlg", "hfdr", "hmnu", "hrct", "hwin":
             "questionmark.bubble" // macOS 13
