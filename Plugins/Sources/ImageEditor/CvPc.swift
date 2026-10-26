@@ -54,13 +54,14 @@ struct PaletteImage {
 }
 
 
-// Format is:
-// 0x00 - width
-// 0x02 - height
-// 0x04 - initial bitcode width
-// 0x05 - palette size - 1
-// 0x06 - palette data (3 byte r/g/b tuple)
-// 0xnn - LZW-and-RLE compressed image data
+/* File format is (big-endian):
+ * 0x00 - width (2 bytes)
+ * 0x02 - height (2 bytes)
+ * 0x04 - initial bitcode width (2-11) (max value observed is 8)
+ * 0x05 - palette size - 1
+ * 0x06 - palette data (3 byte r/g/b tuple)
+ * 0xnn - LZW-and-RLE compressed image data
+ */
 struct CvPc {
     var imageRep: NSBitmapImageRep
     
@@ -162,7 +163,8 @@ class BitReader {
         position += count
         return ret
     }
-    
+
+    // Get the next bitcode of the specified width from the bit stream
     func getBitcode(bitcodeWidth: Int) -> Int? {
         while numberOfReadBits < bitcodeWidth + 1 {
             if dataChunkLength == 0 {
@@ -379,7 +381,10 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
             
             prevBitcode = bitcode
         } else {
-            print("Error: Third case, bitcode 0x\(String(format: "%04X", bitcode)) is not equal to next_bitcode 0x\(String(format: "%04X", nextBitcode))")
+            print(
+                "Error: Third case, bitcode 0x\(String(format: "%04X", bitcode)) ",
+                "is not equal to next_bitcode 0x\(String(format: "%04X", nextBitcode))"
+            )
             break
         }
         
