@@ -28,7 +28,6 @@ import RFSupport
  * be easy to recognize by researching gif2palette_image()
  */
 
-let DEBUG = 0
 let BITCODE_WIDTH_MAX = 11  // Max observed value
 let bytesPerPixel = 3  // RGB (use 4 for RGBA)
 let bitsPerSample = 8  // 8 bits per color channel (R, G, B)
@@ -65,6 +64,7 @@ enum CvPcError: Error {
     case doneBitcodeNotFound
     case invalidBitcodeSequence(bitcode: Int, nextBitcode: Int)
     case invalidBitcodeWidth(width: Int)
+    case pictureOverflow
 }
 
 /* File format is (big-endian):
@@ -183,25 +183,12 @@ class BitReader {
             if dataChunkLength == 0 {
                 guard let chunkSize = readByte() else { return nil }
                 dataChunkLength = Int(chunkSize)
-                
-                if DEBUG >= 1 {
-                    print("!! new chunk of data, size 0x\(String(format: "%02X", dataChunkLength))")
-                }
-                
-                guard dataChunkLength > 0 else {
-                    if DEBUG >= 1 {
-                        print("******Double data_chunk zero")
-                    }
-                    return 0
-                }
+                guard dataChunkLength > 0 else { return nil }
             } else {
                 guard let byte = readByte() else { return nil }
                 readBits |= UInt32(byte) << numberOfReadBits
                 numberOfReadBits += 8
                 
-                if DEBUG >= 2 {
-                    print("!! (0x\(String(format: "%02X", dataChunkLength)))read compressed byte 0x\(String(format: "%02X", byte))")
-                }
                 dataChunkLength -= 1
             }
         }
@@ -209,10 +196,6 @@ class BitReader {
         // Get bitcode from readBits buffer
         let bitcodeMask = (1 << requiredBits) - 1
         let bitcode = Int(readBits & UInt32(bitcodeMask))
-        
-        if DEBUG >= 2 {
-            print("Bitcode \(String(format: "%X", bitcode)) (mask 0x\(String(format: "%04X", bitcodeMask)))")
-        }
         
         // Empty bits we have used in bitcode from readBits buffer
         readBits >>= requiredBits
@@ -250,13 +233,6 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
         throw CvPcError.invalidPaletteSize(paletteSize: paletteSize)
     }
 
-    if DEBUG >= 1 {
-        print("Image width is 0x\(String(format: "%04X", imageWidth))")
-        print("image height is 0x\(String(format: "%04X", imageHeight))")
-        print("initial bitcode width \(origBitcodeWidth)")
-        print("palette size \(paletteSize)\n")
-    }
-    
     var palette: [Color] = [Color]()
     palette.reserveCapacity(paletteSize)
     guard let paletteData = bitReader.readBytes(count: paletteSize * bytesPerPixel) else {
@@ -270,10 +246,6 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
                 green: paletteData[offset + 1],
                 blue:  paletteData[offset + 2]))
         offset += bytesPerPixel
-        
-        if DEBUG >= 4 {
-            print("\(i): \(palette[i])")
-        }
     }
     
     // Initialize decompression constants
@@ -286,13 +258,6 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
     var bitcodeMask = origBitcodeMask
     var foundDoneBitcode = false
     
-    if DEBUG >= 1 {
-        print("\nresetDictBitcode 0x\(String(format: "%02X", resetDictBitcode))")
-        print("doneBitcode             0x\(String(format: "%02X", doneBitcode))")
-        print("prevBitcode 0x\(String(format: "%02X", prevBitcode))")
-        print("nextBitcode 0x\(String(format: "%02X", nextBitcode))")
-    }
-    
     var picture = [UInt8](repeating: 0, count: Int(imageWidth) * Int(imageHeight))
     var pictureCur = 0
     
@@ -300,7 +265,6 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
     // Bitcodes are at most BITCODE_WIDTH_MAX (11) bits
     // We can read BITCODE_WIDTH_MAX+1 bits
     let dictionarySize = (1 << (BITCODE_WIDTH_MAX + 1))
-    print(dictionarySize)
     var dictionary = [DictionaryEntry](repeating: DictionaryEntry(), count: dictionarySize)
     
     // Fill table with initial bitcodes that correspond to the palette colors
@@ -398,15 +362,8 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
             if bitcodeWidth < BITCODE_WIDTH_MAX {
                 bitcodeWidth += 1
                 bitcodeMask = (bitcodeMask << 1) | 0x1
-                if DEBUG >= 3 {
-                    print("Resizing bitcodeWidth to \(bitcodeWidth)")
-                }
-            } else if DEBUG >= 3 {
-                print(
-                    "**** Can't resize bitcode width to 12, " + 
-                    "nextBitcode 0x\(String(format: "%04X", nextBitcode)), " +
-                    "bitcodeMask 0x\(String(format: "%04X", bitcodeMask))"
-                )
+            } else {
+                // Not an error, just can't resize further
             }
         }
     }
