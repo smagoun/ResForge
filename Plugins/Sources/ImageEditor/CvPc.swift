@@ -30,6 +30,8 @@ import RFSupport
 
 let DEBUG = 0
 let BITCODE_WIDTH_MAX = 11
+let bytesPerPixel = 3  // RGB (use 4 for RGBA)
+let bitsPerSample = 8  // 8 bits per color channel (R, G, B)
 
 struct Color {
     var red: UInt8
@@ -88,13 +90,13 @@ func createImageRepFromPaletteImage(from paletteImage: PaletteImage) -> NSBitmap
         bitmapDataPlanes: nil,
         pixelsWide: width,
         pixelsHigh: height,
-        bitsPerSample: 8,
-        samplesPerPixel: 3,  // RGB (use 4 for RGBA)
+        bitsPerSample: bitsPerSample,
+        samplesPerPixel: bytesPerPixel,
         hasAlpha: false,
         isPlanar: false,
         colorSpaceName: .deviceRGB,
-        bytesPerRow: width * 3,  // 3 bytes per pixel for RGB
-        bitsPerPixel: 24  // 8 bits × 3 channels
+        bytesPerRow: width * bytesPerPixel,
+        bitsPerPixel: bitsPerSample * bytesPerPixel
     ) else {
         return nil
     }
