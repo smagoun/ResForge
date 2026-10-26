@@ -29,7 +29,7 @@ import RFSupport
  */
 
 let DEBUG = 0
-let BITCODE_WIDTH_MAX = 11
+let BITCODE_WIDTH_MAX = 11  // Max observed value
 let bytesPerPixel = 3  // RGB (use 4 for RGBA)
 let bitsPerSample = 8  // 8 bits per color channel (R, G, B)
 
@@ -240,8 +240,10 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
     guard (1...2048).contains(imageWidth), (1...2048).contains(imageHeight) else {
         throw CvPcError.invalidDimensions(imageWidth: imageWidth, imageHeight: imageHeight)
     }
-    // Max observed value is 8
-    guard (2...12).contains(origBitcodeWidth) else {
+    // Max observed value is 8; bitcodes within the image can go up to 11 bits
+    // Max value is 8 because dictionary is loaded with initial
+    // palette, which is up to 2^8 entries
+    guard (2...8).contains(origBitcodeWidth) else {
         throw CvPcError.invalidBitcodeWidth(width: origBitcodeWidth)
     }
     guard (1...256).contains(paletteSize) else {
@@ -294,7 +296,11 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
     var pictureCur = 0
     
     // Fill in dictionary
-    var dictionary = [DictionaryEntry](repeating: DictionaryEntry(), count: 0x2000)
+    // Bitcodes are at most BITCODE_WIDTH_MAX (11) bits
+    // We can read BITCODE_WIDTH_MAX+1 bits
+    let dictionarySize = (1 << (BITCODE_WIDTH_MAX + 1))
+    print(dictionarySize)
+    var dictionary = [DictionaryEntry](repeating: DictionaryEntry(), count: dictionarySize)
     
     // Fill table with initial bitcodes that correspond to the palette colors
     for bitcode in 0..<(1 << origBitcodeWidth) {
