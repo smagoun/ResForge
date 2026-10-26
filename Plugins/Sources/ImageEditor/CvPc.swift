@@ -313,24 +313,14 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
     // Main loop
     while let bitcode = bitReader.getBitcode(bitcodeWidth: bitcodeWidth) {
         
-        if DEBUG >= 3 {
-            print("")
-        }
-
         // Handle Done
         if bitcode == doneBitcode {
-            if DEBUG >= 2 {
-                print("Got doneBitcode(\(String(format: "%X", bitcode)))")
-            }
             foundDoneBitcode = true
             break
         }
         
         // Handle reset
         if bitcode == resetDictBitcode {
-            if DEBUG >= 2 {
-                print("Got resetDictBitcode(\(String(format: "%X", bitcode)))")
-            }
             prevBitcode = resetDictBitcode
             nextBitcode = doneBitcode + 1
             bitcodeWidth = origBitcodeWidth
@@ -340,17 +330,9 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
         
         // First case: immediately after reset
         if prevBitcode == resetDictBitcode {
-            if DEBUG >= 3 {
-                print(" 1: Previous bitcode was resetDictBitcode")
-                print(" *** length \(dictionary[bitcode].length)")
-            }
             prevBitcode = bitcode
             picture[pictureCur] = dictionary[bitcode].colorIndex
             pictureCur += 1
-            
-            if DEBUG >= 4 {
-                print("  1: Color \(String(format: "%02X", dictionary[bitcode].colorIndex))")
-            }
             continue
         }
         
@@ -361,11 +343,6 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
         
         // Second case: bitcode is already in the dictionary
         if bitcode < nextBitcode {
-            if DEBUG >= 3 {
-                print(" 2: Bitcode is in dictionary")
-                print(" *** length \(dictionary[bitcode].length)")
-            }
-            
             pictureCur += Int(dictionary[bitcode].length)
             var pixelIndex = pictureCur
             
@@ -375,9 +352,6 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
             // Fill in colors from bitcode dictionary word
             repeat {
                 pixelIndex -= 1
-                if DEBUG >= 4 {
-                    print("  2: Color \(String(format: "%02X", dictionary[currentBitcode].colorIndex))")
-                }
                 picture[pixelIndex] = dictionary[currentBitcode].colorIndex
                 pixel = dictionary[currentBitcode].colorIndex
                 currentBitcode = dictionary[currentBitcode].prefixBitcode
@@ -385,11 +359,6 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
             
         // Third case: bitcode not in dictionary yet
         } else if bitcode == nextBitcode {
-            if DEBUG >= 3 {
-                print(" 3: Bitcode is not in dictionary")
-                print(" *** length \(dictionary[prevBitcode].length) + 1 = \(dictionary[prevBitcode].length + 1)")
-            }
-            
             pictureCur += Int(dictionary[prevBitcode].length) + 1
             var pixelIndex = pictureCur - 1
             
@@ -398,18 +367,10 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
                 pixelIndex -= 1
                 picture[pixelIndex] = dictionary[currentBitcode].colorIndex
                 pixel = dictionary[currentBitcode].colorIndex
-                
-                if DEBUG >= 4 {
-                    print("  3: Color \(String(format: "%02X", dictionary[currentBitcode].colorIndex))")
-                }
                 currentBitcode = dictionary[currentBitcode].prefixBitcode
             } while currentBitcode != -1
             
             picture[pictureCur - 1] = pixel
-            
-            if DEBUG >= 4 {
-                print("  3: LAST Color \(String(format: "%02X", pixel))")
-            }
             
             prevBitcode = bitcode
         } else {
@@ -418,16 +379,6 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
         
         // Assign to nextBitcode previous_sequence + current_sequence[0]
         dictionary[nextBitcode].colorIndex = UInt8(pixel)
-        
-        if DEBUG >= 3 {
-            print("Inserting to \(nextBitcode) sequence(rev):", terminator: "")
-            var index = nextBitcode
-            repeat {
-                print(" 0x\(String(format: "%02X", dictionary[index].colorIndex))", terminator: "")
-                index = dictionary[index].prefixBitcode
-            } while index != -1
-            print("")
-        }
         
         nextBitcode += 1
         if nextBitcode > bitcodeMask {
