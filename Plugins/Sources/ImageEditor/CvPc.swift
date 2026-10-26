@@ -248,12 +248,19 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
     }
     
     var palette: [Color] = [Color]()
+    palette.reserveCapacity(paletteSize)
+    guard let paletteData = bitReader.readBytes(count: paletteSize * bytesPerPixel) else {
+        print("Failed to read palette data")
+        return nil
+    }
+    var offset = 0
     for i in 0..<paletteSize {
-        guard let color = bitReader.readBytes(count: bytesPerPixel) else {
-            print("Truncated palette color at index \(i)")
-            return nil
-        }
-        palette.append(Color(red: color[0], green: color[1], blue: color[2]))
+        palette.append(
+            Color(
+                red:   paletteData[offset], 
+                green: paletteData[offset + 1],
+                blue:  paletteData[offset + 2]))
+        offset += bytesPerPixel
         
         if DEBUG >= 4 {
             print("\(i): \(palette[i])")
