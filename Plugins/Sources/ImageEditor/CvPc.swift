@@ -261,19 +261,19 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
     }
     
     // Initialize decompression constants
-    let RESET_DICTIONARY_BITCODE = 1 << origBitcodeWidth
-    let DONE_BITCODE = (1 << origBitcodeWidth) + 1
-    var prevBitcode = RESET_DICTIONARY_BITCODE
-    var nextBitcode = DONE_BITCODE + 1
+    let resetDictBitcode = 1 << origBitcodeWidth
+    let doneBitcode = (1 << origBitcodeWidth) + 1
+    var prevBitcode = resetDictBitcode
+    var nextBitcode = doneBitcode + 1
     var bitcodeWidth = origBitcodeWidth
     var bitcodeMask = ((2 << origBitcodeWidth) - 1)
     var foundDoneBitcode = false
     
     if DEBUG >= 1 {
-        print("\nRESET_DICTIONARY_BITCODE 0x\(String(format: "%02X", RESET_DICTIONARY_BITCODE))")
-        print("DONE_BITCODE             0x\(String(format: "%02X", DONE_BITCODE))")
-        print("prev_bitcode 0x\(String(format: "%02X", prevBitcode))")
-        print("next_bitcode 0x\(String(format: "%02X", nextBitcode))")
+        print("\nresetDictBitcode 0x\(String(format: "%02X", resetDictBitcode))")
+        print("doneBitcode             0x\(String(format: "%02X", doneBitcode))")
+        print("prevBitcode 0x\(String(format: "%02X", prevBitcode))")
+        print("nextBitcode 0x\(String(format: "%02X", nextBitcode))")
     }
     
     var picture = [UInt8](repeating: 0, count: Int(imageWidth) * Int(imageHeight))
@@ -297,30 +297,30 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
         }
 
         // Handle Done
-        if bitcode == DONE_BITCODE {
+        if bitcode == doneBitcode {
             if DEBUG >= 2 {
-                print("Got DONE_BITCODE(\(String(format: "%X", bitcode)))")
+                print("Got doneBitcode(\(String(format: "%X", bitcode)))")
             }
             foundDoneBitcode = true
             break
         }
         
         // Handle reset
-        if bitcode == RESET_DICTIONARY_BITCODE {
+        if bitcode == resetDictBitcode {
             if DEBUG >= 2 {
-                print("Got RESET_DICTIONARY_BITCODE(\(String(format: "%X", bitcode)))")
+                print("Got resetDictBitcode(\(String(format: "%X", bitcode)))")
             }
-            prevBitcode = RESET_DICTIONARY_BITCODE
-            nextBitcode = DONE_BITCODE + 1
+            prevBitcode = resetDictBitcode
+            nextBitcode = doneBitcode + 1
             bitcodeWidth = origBitcodeWidth
             bitcodeMask = ((2 << origBitcodeWidth) - 1)
             continue
         }
         
         // First case: immediately after reset
-        if prevBitcode == RESET_DICTIONARY_BITCODE {
+        if prevBitcode == resetDictBitcode {
             if DEBUG >= 3 {
-                print(" 1: Previous bitcode was RESET_DICTIONARY_BITCODE")
+                print(" 1: Previous bitcode was resetDictBitcode")
                 print(" *** length \(dictionary[bitcode].length)")
             }
             prevBitcode = bitcode
@@ -394,12 +394,12 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
         } else {
             print(
                 "Error: Third case, bitcode 0x\(String(format: "%04X", bitcode)) ",
-                "is not equal to next_bitcode 0x\(String(format: "%04X", nextBitcode))"
+                "is not equal to nextBitcode 0x\(String(format: "%04X", nextBitcode))"
             )
             break
         }
         
-        // Assign to next_bitcode previous_sequence + current_sequence[0]
+        // Assign to nextBitcode previous_sequence + current_sequence[0]
         dictionary[nextBitcode].colorIndex = UInt8(pixel)
         
         if DEBUG >= 3 {
@@ -418,20 +418,20 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
                 bitcodeWidth += 1
                 bitcodeMask = (bitcodeMask << 1) | 0x1
                 if DEBUG >= 3 {
-                    print("Resizing bitcode_width to \(bitcodeWidth)")
+                    print("Resizing bitcodeWidth to \(bitcodeWidth)")
                 }
             } else if DEBUG >= 3 {
                 print(
                     "**** Can't resize bitcode width to 12, " + 
-                    "next_bitcode 0x\(String(format: "%04X", nextBitcode)), " +
-                    "bitcode_mask 0x\(String(format: "%04X", bitcodeMask))"
+                    "nextBitcode 0x\(String(format: "%04X", nextBitcode)), " +
+                    "bitcodeMask 0x\(String(format: "%04X", bitcodeMask))"
                 )
             }
         }
     }
 
     guard foundDoneBitcode else {
-        print("Error: Did not find DONE_BITCODE")
+        print("Error: Did not find doneBitcode")
         return nil
     }
     
