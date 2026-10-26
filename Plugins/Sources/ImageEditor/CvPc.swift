@@ -279,10 +279,11 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
     // Initialize decompression constants
     let resetDictBitcode = 1 << origBitcodeWidth
     let doneBitcode = (1 << origBitcodeWidth) + 1
+    let origBitcodeMask = (2 << origBitcodeWidth) - 1
     var prevBitcode = resetDictBitcode
     var nextBitcode = doneBitcode + 1
     var bitcodeWidth = origBitcodeWidth
-    var bitcodeMask = ((2 << origBitcodeWidth) - 1)
+    var bitcodeMask = origBitcodeMask
     var foundDoneBitcode = false
     
     if DEBUG >= 1 {
@@ -333,7 +334,7 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
             prevBitcode = resetDictBitcode
             nextBitcode = doneBitcode + 1
             bitcodeWidth = origBitcodeWidth
-            bitcodeMask = ((2 << origBitcodeWidth) - 1)
+            bitcodeMask = origBitcodeMask
             continue
         }
         
