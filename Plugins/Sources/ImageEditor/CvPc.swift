@@ -114,17 +114,20 @@ func createImageRepFromPaletteImage(from paletteImage: PaletteImage) -> NSBitmap
     }
     
     // Fill in the pixel data from the palette
-    for y in 0..<height {
-        for x in 0..<width {
-            let pixelIndex = y * width + x
-            let colorIndex = Int(paletteImage.data[pixelIndex])
-            let color = paletteImage.palette[colorIndex]
-            
-            let offset = (y * width + x) * 3
-            bitmapData[offset] = color.red
-            bitmapData[offset + 1] = color.green
-            bitmapData[offset + 2] = color.blue
+    for pixelIndex in 0..<(width * height) {
+        let colorIndex = Int(paletteImage.data[pixelIndex])
+
+        guard colorIndex < paletteImage.palette.count else {
+            print("Invalid color index: \(colorIndex)")
+            return nil
         }
+
+        let color = paletteImage.palette[colorIndex]
+        let offset = pixelIndex * bytesPerPixel
+        
+        bitmapData[offset] = color.red
+        bitmapData[offset + 1] = color.green
+        bitmapData[offset + 2] = color.blue
     }
     
     return bitmapRep
