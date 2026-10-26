@@ -53,6 +53,19 @@ struct PaletteImage {
     var data: [UInt8]      // Decoded image. Each element is an index into the palette
 }
 
+enum CvPcError: Error {
+    case invalidHeader
+    case invalidImageData
+    case invalidColorIndex(colorIndex: Int)
+    case invalidDimensions(imageWidth: Int, imageHeight: Int)
+    case invalidPaletteSize(paletteSize: Int)
+    case truncatedPaletteColor
+    case bitmapCreationFailed
+    case invalidBitmapData(expected: Int, actual: Int)
+    case doneBitcodeNotFound
+    case invalidBitcodeSequence(bitcode: Int, nextBitcode: Int)
+    case invalidBitcodeWidth(width: Int)
+}
 
 /* File format is (big-endian):
  * 0x00 - width (2 bytes)
@@ -67,12 +80,13 @@ struct CvPc {
     
     init?(_ reader: BinaryDataReader) throws {
         let compressed = try reader.readData(length: reader.bytesRemaining)
-        let imgData = decodeImage(data: compressed)
-        guard imgData != nil else {
-            print("Couldn't create PaletteImage")
+        guard let imgData = try decodeImage(data: compressed) else {
             return nil
         }
-        imageRep = createImageRepFromPaletteImage(from: imgData!)!
+        guard let imageRep = try createImageRepFromPaletteImage(from: imgData) else {
+            return nil
+        }
+        self.imageRep = imageRep
     }
 
     static func rep(_ data: Data) -> NSBitmapImageRep? {
@@ -82,13 +96,12 @@ struct CvPc {
 }
 
 
-func createImageRepFromPaletteImage(from paletteImage: PaletteImage) -> NSBitmapImageRep? {
+func createImageRepFromPaletteImage(from paletteImage: PaletteImage) throws -> NSBitmapImageRep? {
     let width = Int(paletteImage.width)
     let height = Int(paletteImage.height)
 
     guard width > 0, height > 0 else {
-        print("Invalid image dimensions: \(width)x\(height)")
-        return nil
+        throw CvPcError.invalidDimensions(imageWidth: width, imageHeight: height)
     }
     
     // Create bitmap with RGB color space
@@ -104,14 +117,13 @@ func createImageRepFromPaletteImage(from paletteImage: PaletteImage) -> NSBitmap
         bytesPerRow: width * bytesPerPixel,
         bitsPerPixel: bitsPerSample * bytesPerPixel
     ) else {
-        return nil
+        throw CvPcError.bitmapCreationFailed
     }
     
     // Get pointer to the bitmap data
     let bitmapSize = bitmapRep.bytesPerRow * bitmapRep.pixelsHigh
     guard let bitmapData = bitmapRep.bitmapData, bitmapSize >= width * height * bytesPerPixel else {
-        print("Invalid bitmap data: expected \(width * height * bytesPerPixel) bytes, got \(bitmapSize)")
-        return nil
+        throw CvPcError.invalidBitmapData(expected: width * height * bytesPerPixel, actual: bitmapSize)
     }
     
     // Fill in the pixel data from the palette
@@ -119,8 +131,7 @@ func createImageRepFromPaletteImage(from paletteImage: PaletteImage) -> NSBitmap
         let colorIndex = Int(paletteImage.data[pixelIndex])
 
         guard colorIndex < paletteImage.palette.count else {
-            print("Invalid color index: \(colorIndex)")
-            return nil
+            throw CvPcError.invalidColorIndex(colorIndex: colorIndex)
         }
 
         let color = paletteImage.palette[colorIndex]
@@ -212,14 +223,13 @@ class BitReader {
 }
 
 // Decodes a compressed image into a PaletteImage
-func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UInt8 {
+func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element == UInt8 {
     let byteArray = ArraySlice(data)
     let bitReader = BitReader(data: byteArray)
     
     // Read 6-byte image header; values are big-endian
     guard let header = bitReader.readBytes(count: 6) else {
-        print("Failed to read image header")
-        return nil
+        throw CvPcError.invalidHeader
     }
     let imageWidth: Int = Int(header[0]) << 8 | Int(header[1])
     let imageHeight: Int = Int(header[2]) << 8 | Int(header[3])
@@ -227,17 +237,15 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
     let paletteSize: Int = Int(header[5]) + 1
 
     // Max dimensions are arbitrary and based on expected image sizes
-    guard (1..<2048).contains(imageWidth), (1..<2048).contains(imageHeight) else {
-        print("Invalid image dimensions \(imageWidth)x\(imageHeight)")
-        return nil
+    guard (1...2048).contains(imageWidth), (1...2048).contains(imageHeight) else {
+        throw CvPcError.invalidDimensions(imageWidth: imageWidth, imageHeight: imageHeight)
     }
-    guard origBitcodeWidth >= 2, origBitcodeWidth <= 12 else {
-        print("Invalid bitcode width \(origBitcodeWidth) (must be between 2-12)")
-        return nil
+    // Max observed value is 8
+    guard (2...12).contains(origBitcodeWidth) else {
+        throw CvPcError.invalidBitcodeWidth(width: origBitcodeWidth)
     }
-    guard paletteSize > 0, paletteSize <= 256 else {
-        print("Invalid palette size \(paletteSize) (must be between 1 and 256)")
-        return nil
+    guard (1...256).contains(paletteSize) else {
+        throw CvPcError.invalidPaletteSize(paletteSize: paletteSize)
     }
 
     if DEBUG >= 1 {
@@ -250,8 +258,7 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
     var palette: [Color] = [Color]()
     palette.reserveCapacity(paletteSize)
     guard let paletteData = bitReader.readBytes(count: paletteSize * bytesPerPixel) else {
-        print("Failed to read palette data")
-        return nil
+        throw CvPcError.truncatedPaletteColor
     }
     var offset = 0
     for i in 0..<paletteSize {
@@ -399,11 +406,7 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
             
             prevBitcode = bitcode
         } else {
-            print(
-                "Error: Third case, bitcode 0x\(String(format: "%04X", bitcode)) ",
-                "is not equal to nextBitcode 0x\(String(format: "%04X", nextBitcode))"
-            )
-            break
+            throw CvPcError.invalidBitcodeSequence(bitcode: bitcode, nextBitcode: nextBitcode)
         }
         
         // Assign to nextBitcode previous_sequence + current_sequence[0]
@@ -438,8 +441,7 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
     }
 
     guard foundDoneBitcode else {
-        print("Error: Did not find doneBitcode")
-        return nil
+        throw CvPcError.doneBitcodeNotFound
     }
     
     // Return the image
