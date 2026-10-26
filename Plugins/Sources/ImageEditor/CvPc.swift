@@ -84,6 +84,11 @@ struct CvPc {
 func createImageRepFromPaletteImage(from paletteImage: PaletteImage) -> NSBitmapImageRep? {
     let width = Int(paletteImage.width)
     let height = Int(paletteImage.height)
+
+    guard width > 0, height > 0 else {
+        print("Invalid image dimensions: \(width)x\(height)")
+        return nil
+    }
     
     // Create bitmap with RGB color space
     guard let bitmapRep = NSBitmapImageRep(
@@ -102,7 +107,9 @@ func createImageRepFromPaletteImage(from paletteImage: PaletteImage) -> NSBitmap
     }
     
     // Get pointer to the bitmap data
-    guard let bitmapData = bitmapRep.bitmapData else {
+    let bitmapSize = bitmapRep.bytesPerRow * bitmapRep.pixelsHigh
+    guard let bitmapData = bitmapRep.bitmapData, bitmapSize >= width * height * bytesPerPixel else {
+        print("Invalid bitmap data: expected \(width * height * bytesPerPixel) bytes, got \(bitmapSize)")
         return nil
     }
     
