@@ -177,7 +177,7 @@ class BitReader {
                     print("!! new chunk of data, size 0x\(String(format: "%02X", dataChunkLength))")
                 }
                 
-                if dataChunkLength == 0 {
+                guard dataChunkLength > 0 else {
                     if DEBUG >= 1 {
                         print("******Double data_chunk zero")
                     }
@@ -267,6 +267,7 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
     var nextBitcode = DONE_BITCODE + 1
     var bitcodeWidth = origBitcodeWidth
     var bitcodeMask = ((2 << origBitcodeWidth) - 1)
+    var foundDoneBitcode = false
     
     if DEBUG >= 1 {
         print("\nRESET_DICTIONARY_BITCODE 0x\(String(format: "%02X", RESET_DICTIONARY_BITCODE))")
@@ -289,11 +290,19 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
     }
     
     // Main loop
-    while let bitcode = bitReader.getBitcode(bitcodeWidth: bitcodeWidth),
-          bitcode != DONE_BITCODE {
+    while let bitcode = bitReader.getBitcode(bitcodeWidth: bitcodeWidth) {
         
         if DEBUG >= 3 {
             print("")
+        }
+
+        // Handle Done
+        if bitcode == DONE_BITCODE {
+            if DEBUG >= 2 {
+                print("Got DONE_BITCODE(\(String(format: "%X", bitcode)))")
+            }
+            foundDoneBitcode = true
+            break
         }
         
         // Handle reset
@@ -404,15 +413,26 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
         }
         
         nextBitcode += 1
-        if nextBitcode > bitcodeMask && bitcodeWidth < BITCODE_WIDTH_MAX {
-            bitcodeWidth += 1
-            bitcodeMask = (bitcodeMask << 1) | 0x1
-            if DEBUG >= 3 {
-                print("Resizing bitcode_width to \(bitcodeWidth)")
+        if nextBitcode > bitcodeMask {
+            if bitcodeWidth < BITCODE_WIDTH_MAX {
+                bitcodeWidth += 1
+                bitcodeMask = (bitcodeMask << 1) | 0x1
+                if DEBUG >= 3 {
+                    print("Resizing bitcode_width to \(bitcodeWidth)")
+                }
+            } else if DEBUG >= 3 {
+                print(
+                    "**** Can't resize bitcode width to 12, " + 
+                    "next_bitcode 0x\(String(format: "%04X", nextBitcode)), " +
+                    "bitcode_mask 0x\(String(format: "%04X", bitcodeMask))"
+                )
             }
-        } else if nextBitcode > bitcodeMask && DEBUG >= 3 {
-            print("**** Can't resize bitcode width to 12, next_bitcode 0x\(String(format: "%04X", nextBitcode)), bitcode_mask 0x\(String(format: "%04X", bitcodeMask))")
         }
+    }
+
+    guard foundDoneBitcode else {
+        print("Error: Did not find DONE_BITCODE")
+        return nil
     }
     
     // Return the image
