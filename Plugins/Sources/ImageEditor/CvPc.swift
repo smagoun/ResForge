@@ -166,7 +166,9 @@ class BitReader {
 
     // Get the next bitcode of the specified width from the bit stream
     func getBitcode(bitcodeWidth: Int) -> Int? {
-        while numberOfReadBits < bitcodeWidth + 1 {
+        let requiredBits = bitcodeWidth + 1
+
+        while numberOfReadBits < requiredBits {
             if dataChunkLength == 0 {
                 guard let chunkSize = readByte() else { return nil }
                 dataChunkLength = Int(chunkSize)
@@ -183,7 +185,7 @@ class BitReader {
                 }
             } else {
                 guard let byte = readByte() else { return nil }
-                readBits = (UInt32(byte) << numberOfReadBits) | readBits
+                readBits |= UInt32(byte) << numberOfReadBits
                 numberOfReadBits += 8
                 
                 if DEBUG >= 2 {
@@ -193,17 +195,17 @@ class BitReader {
             }
         }
         
-        // Get bitcode from read_bits buffer
-        let bitcodeMask = ((2 << bitcodeWidth) - 1)
+        // Get bitcode from readBits buffer
+        let bitcodeMask = (1 << requiredBits) - 1
         let bitcode = Int(readBits & UInt32(bitcodeMask))
         
         if DEBUG >= 2 {
             print("Bitcode \(String(format: "%X", bitcode)) (mask 0x\(String(format: "%04X", bitcodeMask)))")
         }
         
-        // Empty bits we have used in bitcode from read_bits buffer
-        readBits >>= (bitcodeWidth + 1)
-        numberOfReadBits -= (bitcodeWidth + 1)
+        // Empty bits we have used in bitcode from readBits buffer
+        readBits >>= requiredBits
+        numberOfReadBits -= requiredBits
         
         return bitcode
     }
