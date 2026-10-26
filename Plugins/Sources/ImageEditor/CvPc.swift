@@ -331,6 +331,9 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
         // First case: immediately after reset
         if prevBitcode == resetDictBitcode {
             prevBitcode = bitcode
+            guard pictureCur < picture.count else {
+                throw CvPcError.pictureOverflow
+            }
             picture[pictureCur] = dictionary[bitcode].colorIndex
             pictureCur += 1
             continue
@@ -343,6 +346,9 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
         
         // Second case: bitcode is already in the dictionary
         if bitcode < nextBitcode {
+            guard pictureCur + Int(dictionary[bitcode].length) <= picture.count else {
+                throw CvPcError.pictureOverflow
+            }
             pictureCur += Int(dictionary[bitcode].length)
             var pixelIndex = pictureCur
             
@@ -350,6 +356,7 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
             var currentBitcode = bitcode
             
             // Fill in colors from bitcode dictionary word
+            // Should stay identical to the block below
             repeat {
                 pixelIndex -= 1
                 picture[pixelIndex] = dictionary[currentBitcode].colorIndex
@@ -359,10 +366,16 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
             
         // Third case: bitcode not in dictionary yet
         } else if bitcode == nextBitcode {
+            guard pictureCur + Int(dictionary[prevBitcode].length) + 1 <= picture.count else {
+                throw CvPcError.pictureOverflow
+            }
             pictureCur += Int(dictionary[prevBitcode].length) + 1
             var pixelIndex = pictureCur - 1
             
             var currentBitcode = prevBitcode
+
+            // Fill in colors from previous bitcode sequence
+            // Should stay identical to the block above
             repeat {
                 pixelIndex -= 1
                 picture[pixelIndex] = dictionary[currentBitcode].colorIndex
