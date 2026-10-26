@@ -146,7 +146,7 @@ class BitReader {
         self.position = data.startIndex
     }
     
-    private func readByte() -> UInt8? {
+    func readByte() -> UInt8? {
         guard position < data.endIndex else {
             return nil
         }
@@ -155,13 +155,12 @@ class BitReader {
         return byte
     }
     
-    func readNumber(bytes: Int) -> UInt32 {
-        var number: UInt32 = 0
-        for i in 0..<bytes {
-            guard let byte = readByte() else { break }
-            number += UInt32(byte) << ((bytes - 1 - i) * 8)
-        }
-        return number
+    // Read the specified number of bytes and return them as an array/
+    func readBytes(count: Int) -> [UInt8]? {
+        guard count > 0, data.endIndex - position >= count else { return nil }
+        let ret = Array(data[position..<position+count])
+        position += count
+        return ret
     }
     
     func getBitcode(bitcodeWidth: Int) -> Int? {
@@ -213,33 +212,47 @@ func decodeImage<T: Collection>(data: T) -> PaletteImage? where T.Element == UIn
     let byteArray = ArraySlice(data)
     let bitReader = BitReader(data: byteArray)
     
-    // Image header
-    let imageWidth = Int(bitReader.readNumber(bytes: 2))
-    let imageHeight = Int(bitReader.readNumber(bytes: 2))
-    let origBitcodeWidth = Int(bitReader.readNumber(bytes: 1))
-    let paletteSize = Int(bitReader.readNumber(bytes: 1)) + 1
+    // Read 6-byte image header; values are big-endian
+    guard let header = bitReader.readBytes(count: 6) else {
+        print("Failed to read image header")
+        return nil
+    }
+    let imageWidth: Int = Int(header[0]) << 8 | Int(header[1])
+    let imageHeight: Int = Int(header[2]) << 8 | Int(header[3])
+    let origBitcodeWidth: Int = Int(header[4])
+    let paletteSize: Int = Int(header[5]) + 1
+
+    // Max dimensions are arbitrary and based on expected image sizes
+    guard (1..<2048).contains(imageWidth), (1..<2048).contains(imageHeight) else {
+        print("Invalid image dimensions \(imageWidth)x\(imageHeight)")
+        return nil
+    }
+    guard origBitcodeWidth >= 2, origBitcodeWidth <= 12 else {
+        print("Invalid bitcode width \(origBitcodeWidth) (must be between 2-12)")
+        return nil
+    }
+    guard paletteSize > 0, paletteSize <= 256 else {
+        print("Invalid palette size \(paletteSize) (must be between 1 and 256)")
+        return nil
+    }
 
     if DEBUG >= 1 {
         print("Image width is 0x\(String(format: "%04X", imageWidth))")
         print("image height is 0x\(String(format: "%04X", imageHeight))")
         print("initial bitcode width \(origBitcodeWidth)")
-        print("palette_size \(paletteSize)\n")
+        print("palette size \(paletteSize)\n")
     }
     
-    // Read palette
-    if DEBUG >= 4 {
-        print("\nPalette (0x\(String(format: "%02X", paletteSize))):")
-    }
-    
-    var palette = [Color]()
+    var palette: [Color] = [Color]()
     for i in 0..<paletteSize {
-        let red = UInt8(bitReader.readNumber(bytes: 1))
-        let green = UInt8(bitReader.readNumber(bytes: 1))
-        let blue = UInt8(bitReader.readNumber(bytes: 1))
-        palette.append(Color(red: red, green: green, blue: blue))
+        guard let color = bitReader.readBytes(count: bytesPerPixel) else {
+            print("Truncated palette color at index \(i)")
+            return nil
+        }
+        palette.append(Color(red: color[0], green: color[1], blue: color[2]))
         
         if DEBUG >= 4 {
-            print(" \(String(format: "%03d", i)) - r \(String(format: "%03d", red)) g \(String(format: "%03d", green)) b \(String(format: "%03d", blue))")
+            print("\(i): \(palette[i])")
         }
     }
     
