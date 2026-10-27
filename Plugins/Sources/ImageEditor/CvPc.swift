@@ -156,7 +156,7 @@ func createImageRepFromPaletteImage(from paletteImage: PaletteImage) throws -> N
 
 
 class BitReader {
-    private var data: ArraySlice<UInt8>
+    private let data: ArraySlice<UInt8>
     private var position: Int
     private var dataChunkLength: Int = 0
     private var readBits: UInt32 = 0
@@ -276,7 +276,7 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
     let dictionarySize = (1 << (BITCODE_WIDTH_MAX + 1))
     var dictionary = [DictionaryEntry](repeating: DictionaryEntry(), count: dictionarySize)
     
-    // Fill table with initial bitcodes that correspond to the palette colors
+    // Fill table with initial bitcodes
     for bitcode in 0..<(1 << origBitcodeWidth) {
         dictionary[bitcode].colorIndex = UInt8(bitcode)
         dictionary[bitcode].prefixBitcode = -1
