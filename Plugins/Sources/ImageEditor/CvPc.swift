@@ -44,6 +44,16 @@ struct DictionaryEntry {
     var length: Int = 0
 }
 
+func expandDictionaryEntry(_ bitcode: Int, dictionary: [DictionaryEntry]) -> [UInt8] {
+    var sequence: [UInt8] = []
+    var currentBitcode = bitcode
+    while currentBitcode != -1 {
+        sequence.append(dictionary[currentBitcode].colorIndex)
+        currentBitcode = dictionary[currentBitcode].prefixBitcode
+    }
+    return sequence.reversed()
+}
+
 struct PaletteImage {
     var width: Int
     var height: Int
@@ -303,59 +313,31 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
             continue
         }
         
-        dictionary[nextBitcode].length = dictionary[prevBitcode].length + 1
-        dictionary[nextBitcode].prefixBitcode = prevBitcode
-        
-        var pixel: UInt8 = 0
-        
-        // Second case: bitcode is already in the dictionary
+        // Resolve the current sequence before adding the next dictionary entry.
+        let sequence: [UInt8]
         if bitcode < nextBitcode {
-            guard pictureCur + Int(dictionary[bitcode].length) <= picture.count else {
-                throw CvPcError.pictureOverflow
-            }
-            pictureCur += Int(dictionary[bitcode].length)
-            var pixelIndex = pictureCur
-            
-            prevBitcode = bitcode
-            var currentBitcode = bitcode
-            
-            // Fill in colors from bitcode dictionary word
-            // Should stay identical to the block below
-            repeat {
-                pixelIndex -= 1
-                picture[pixelIndex] = dictionary[currentBitcode].colorIndex
-                pixel = dictionary[currentBitcode].colorIndex
-                currentBitcode = dictionary[currentBitcode].prefixBitcode
-            } while currentBitcode != -1
-            
-        // Third case: bitcode not in dictionary yet
+            sequence = expandDictionaryEntry(bitcode, dictionary: dictionary)
         } else if bitcode == nextBitcode {
-            guard pictureCur + Int(dictionary[prevBitcode].length) + 1 <= picture.count else {
-                throw CvPcError.pictureOverflow
-            }
-            pictureCur += Int(dictionary[prevBitcode].length) + 1
-            var pixelIndex = pictureCur - 1
-            
-            var currentBitcode = prevBitcode
-
-            // Fill in colors from previous bitcode sequence
-            // Should stay identical to the block above
-            repeat {
-                pixelIndex -= 1
-                picture[pixelIndex] = dictionary[currentBitcode].colorIndex
-                pixel = dictionary[currentBitcode].colorIndex
-                currentBitcode = dictionary[currentBitcode].prefixBitcode
-            } while currentBitcode != -1
-            
-            picture[pictureCur - 1] = pixel
-            
-            prevBitcode = bitcode
+            let previousSequence = expandDictionaryEntry(prevBitcode, dictionary: dictionary)
+            sequence = previousSequence + [previousSequence[0]]
         } else {
             throw CvPcError.invalidBitcodeSequence(bitcode: bitcode, nextBitcode: nextBitcode)
         }
-        
-        // Assign to nextBitcode previous_sequence + current_sequence[0]
-        dictionary[nextBitcode].colorIndex = UInt8(pixel)
+
+        guard pictureCur + sequence.count <= picture.count else {
+            throw CvPcError.pictureOverflow
+        }
+        for colorIndex in sequence {
+            picture[pictureCur] = colorIndex
+            pictureCur += 1
+        }
+
+        // The new entry is previous_sequence + current_sequence[0].
+        let firstColor = sequence[0]
+        dictionary[nextBitcode].length = dictionary[prevBitcode].length + 1
+        dictionary[nextBitcode].prefixBitcode = prevBitcode
+        dictionary[nextBitcode].colorIndex = firstColor
+        prevBitcode = bitcode
         
         nextBitcode += 1
         if nextBitcode > bitcodeMask {
