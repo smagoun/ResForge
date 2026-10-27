@@ -64,7 +64,6 @@ struct PaletteImage {
 
 enum CvPcError: Error {
     case invalidHeader
-    case invalidImageData
     case invalidColorIndex(colorIndex: Int)
     case invalidDimensions(imageWidth: Int, imageHeight: Int)
     case invalidPaletteSize(paletteSize: Int)
