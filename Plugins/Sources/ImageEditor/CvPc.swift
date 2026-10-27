@@ -46,6 +46,7 @@ struct DictionaryEntry {
 
 func expandDictionaryEntry(_ bitcode: Int, dictionary: [DictionaryEntry]) -> [UInt8] {
     var sequence: [UInt8] = []
+    sequence.reserveCapacity(dictionary[bitcode].length)
     var currentBitcode = bitcode
     while currentBitcode != -1 {
         sequence.append(dictionary[currentBitcode].colorIndex)
