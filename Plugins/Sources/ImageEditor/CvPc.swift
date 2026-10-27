@@ -52,7 +52,7 @@ func expandDictionaryEntry(_ bitcode: Int, dictionary: [DictionaryEntry]) -> [UI
         sequence.append(dictionary[currentBitcode].colorIndex)
         currentBitcode = dictionary[currentBitcode].prefixBitcode
     }
-    return sequence.reversed()
+    return Array(sequence.reversed())
 }
 
 struct PaletteImage {
@@ -81,7 +81,7 @@ enum CvPcError: Error {
 /* File format is (big-endian):
  * 0x00 - width (2 bytes)
  * 0x02 - height (2 bytes)
- * 0x04 - initial bitcode width (2-11) (max value observed is 8)
+ * 0x04 - initial bitcode width (2-8) (max value observed is 8)
  * 0x05 - palette size - 1
  * 0x06 - palette data (3 byte r/g/b tuple)
  * 0xnn - LZW-and-RLE compressed image data
@@ -178,7 +178,7 @@ class BitReader {
         return byte
     }
     
-    // Read the specified number of bytes and return them as an array/
+    // Read the specified number of bytes and return them as an array
     func readBytes(count: Int) -> [UInt8]? {
         guard count > 0, data.endIndex - position >= count else { return nil }
         let ret = Array(data[position..<position+count])
@@ -250,7 +250,7 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
         throw CvPcError.truncatedPaletteColor
     }
     var offset = 0
-    for i in 0..<paletteSize {
+    for _ in 0..<paletteSize {
         palette.append(
             Color(
                 red:   paletteData[offset], 
