@@ -70,7 +70,8 @@ enum CvPcError: Error {
     case invalidPaletteSize(paletteSize: Int)
     case truncatedPaletteColor
     case bitmapCreationFailed
-    case invalidBitmapData(expected: Int, actual: Int)
+    case invalidBitmapData(expected: Int, actual: Int)  // Mismatch between expected and actual bitmap data size
+    case incompleteImage(expected: Int, actual: Int)    // Not enough pixels generated
     case doneBitcodeNotFound
     case invalidBitcodeSequence(bitcode: Int, nextBitcode: Int)
     case invalidBitcodeWidth(width: Int)
@@ -304,10 +305,17 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
         
         // First case: immediately after reset
         if prevBitcode == resetDictBitcode {
-            prevBitcode = bitcode
             guard pictureCur < picture.count else {
                 throw CvPcError.pictureOverflow
             }
+            guard (0..<(1 << origBitcodeWidth)).contains(bitcode),
+                    bitcode < paletteSize else {
+                throw CvPcError.invalidBitcodeSequence(
+                    bitcode: bitcode,
+                    nextBitcode: nextBitcode
+                )
+            }
+            prevBitcode = bitcode
             picture[pictureCur] = dictionary[bitcode].colorIndex
             pictureCur += 1
             continue
@@ -352,6 +360,14 @@ func decodeImage<T: Collection>(data: T) throws -> PaletteImage? where T.Element
 
     guard foundDoneBitcode else {
         throw CvPcError.doneBitcodeNotFound
+    }
+    
+    // Did we generate enough pixels?
+    guard pictureCur == picture.count else {
+        throw CvPcError.incompleteImage(
+            expected: picture.count,
+            actual: pictureCur
+        )
     }
     
     // Return the image
